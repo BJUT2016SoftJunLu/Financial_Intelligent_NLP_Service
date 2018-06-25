@@ -22,7 +22,7 @@ class MyMactchSRNN(object):
         self.input_x1 = tf.placeholder(tf.int32, shape=[None, self.x1_max_length], name="input_x1")
         self.input_x2 = tf.placeholder(tf.int32, shape=[None, self.x2_max_length], name="input_x2")
         self.input_y = tf.placeholder(tf.int32, shape=[None, self.class_nums], name="input_y")
-        self.keep_prob = tf.placeholder(tf.float32, shape=[None,], name="keep_prob")
+        self.keep_prob = tf.placeholder(tf.float32, name="keep_prob")
 
         # Embedding layer
         self.embedding_matrix = tf.placeholder(tf.float32, shape=[self.vocab_size, self.embedding_size], name="embedding_matrix")
