@@ -123,6 +123,7 @@ def get_embedding_matrix(vocab_size,embedding_size):
         with open(EMBEDDING_MATRIX_PATH,'wb') as fw:
             pickle.dump([sess.run(embedding_matrix)],fw)
 
+
 def batch_iterator(x_train,y_train,batch_size = 64,epoch = 100000):
 
     data_size = x_train.shape
