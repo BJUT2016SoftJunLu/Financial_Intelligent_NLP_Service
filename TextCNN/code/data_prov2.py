@@ -16,7 +16,7 @@ max_document_length = 125
 
 reload(sys)
 sys.setdefaultencoding('utf8')
-jieba.load_userdict("../data/userdict.txt")
+jieba.load_userdict(os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/userdict.txt")))
 
 FILE_PATH_1 = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/atec_nlp_sim_train.csv"))
 FILE_PATH_2 = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/atec_nlp_sim_train_add.csv"))

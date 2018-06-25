@@ -24,6 +24,7 @@ def train(text_cnn, embedding_matrix, model_number):
     config.gpu_options.allow_growth = True
 
     with open(SUB_DATA_PATH + str(model_number),'rb') as fr:
+        print(SUB_DATA_PATH + str(model_number))
         sub_sample, sub_label = pickle.load(fr)
 
     with tf.Session(config=config) as sess:
