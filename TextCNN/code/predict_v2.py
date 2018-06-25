@@ -18,12 +18,12 @@ class Predict:
 
         self.graph = tf.Graph()
         with self.graph.as_default():
-             self.saver = tf.train.import_meta_graph("../model/mod_v2/NLP" + str(model_number) + "-" +str(step_number) + ".meta")#创建恢复器
+             self.saver = tf.train.import_meta_graph("./TextCNN/model/mod_v2/NLP" + str(model_number) + "-" +str(step_number) + ".meta")#创建恢复器
 
         self.sess=tf.Session(graph=self.graph)
         with self.sess.as_default():
              with self.graph.as_default():
-                self.saver.restore(self.sess,"../model/mod_v2/NLP" + str(model_number) + "-" +str(step_number))
+                self.saver.restore(self.sess,"./TextCNN/model/mod_v2/NLP" + str(model_number) + "-" +str(step_number))
 
                 self.input_x = self.graph.get_tensor_by_name('input_x:0')
                 self.input_y = self.graph.get_tensor_by_name('input_y:0')
@@ -35,14 +35,12 @@ class Predict:
 
         vocab_processor = learn.preprocessing.VocabularyProcessor.restore(VPROCESSOR_PATH)
 
-        line_number = []
         sentences = []
         predict_result = []
 
         with open(INPUT_PATH, 'r') as f:
             for line in f.readlines():
                 example_split = line.split("\t")
-                line_number.append(int(example_split[0]))
                 wp_first = " ".join(sentence_split(example_split[1])).split(" ")
                 wp_two = " ".join(sentence_split(example_split[2])).split(" ")
                 sentences.append(" ".join(wp_first) + " " + " ".join(wp_two))
@@ -96,7 +94,7 @@ def bagging(line_number, total_predict, OUTPUT_PATH):
 
     result = []
     for pre in total_predict:
-        if pre >= 3:
+        if pre >= 4:
             result.append(1)
         else:
             result.append(0)
@@ -115,7 +113,7 @@ def main():
 
     args = sys.argv
 
-    # args = ["","../data/test_data_one","../data/test_output"]
+    # args = ["","../data/sub_data3","../data/test_output"]
     line_number = []
     total_predict = []
 
@@ -124,7 +122,7 @@ def main():
             example_split = line.split("\t")
             line_number.append(example_split[0])
 
-    predict_0 = Predict(model_number=0, step_number=761862)
+    predict_0 = Predict(model_number=0, step_number=727586)
     predict_1 = Predict(model_number=1, step_number=761862)
     predict_2 = Predict(model_number=2, step_number=775105)
     predict_3 = Predict(model_number=3, step_number=756409)
