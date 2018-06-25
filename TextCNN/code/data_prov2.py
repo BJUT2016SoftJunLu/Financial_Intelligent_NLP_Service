@@ -124,10 +124,10 @@ def get_embedding_matrix(vocab_size,embedding_size):
             pickle.dump([sess.run(embedding_matrix)],fw)
 
 
-def batch_iterator(x_train,y_train,batch_size = 64,epoch = 100000):
+def batch_iterator(x_train, y_train, batch_size=64, epoch=1500):
 
     data_size = x_train.shape
-    example = np.concatenate((x_train,y_train),axis=1)
+    example = np.concatenate((x_train, y_train),axis=1)
     batch_nums = int(data_size[0]/batch_size) + 1
 
     for i in range(epoch):

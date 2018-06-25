@@ -19,7 +19,6 @@ def train(text_cnn, embedding_matrix, model_number):
     loss_list = []
     acc_list = []
     min_loss = sys.maxint
-    break_step = 0
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
@@ -54,14 +53,6 @@ def train(text_cnn, embedding_matrix, model_number):
                 if loss_mean < min_loss:
                     min_loss = loss_mean
                     save_step = current_step
-                    break_step = 0
-                else:
-                    break_step += 1
-
-                if break_step == 10:
-                    print("****** the 10's epoch loss not reduce, stop traing ******")
-                    tf.train.Saver().save(sess, save_path="../model/mod_v2/NLP" + str(model_number),global_step=save_step)
-                    break
         tf.train.Saver().save(sess, save_path="../model/mod_v2/NLP"+str(model_number), global_step=save_step)
     return
 
