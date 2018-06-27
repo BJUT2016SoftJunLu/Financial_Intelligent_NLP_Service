@@ -4,13 +4,16 @@
 import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
-import random
-import numpy as np
 
-from collections import Counter
+import random
 import pickle
 import csv
 import jieba
+import numpy as np
+import pandas as pd
+from collections import Counter
+
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 jieba.add_word('花呗')
@@ -46,8 +49,8 @@ def create_data_v1(traning_data_path,
     X2_ = []
     Y_ = []
 
-    tfidf_source_file = '.../data/atec_nl_sim_train.txt'
-    tfidf_target_file = '.../data/atec_nl_sim_tfidf.txt'
+    tfidf_source_file = '../data/atec_nl_sim_train.txt'
+    tfidf_target_file = '../data/atec_nl_sim_tfidf.txt'
 
     get_tfidf_score_and_save(tfidf_source_file,tfidf_target_file)
 
@@ -65,7 +68,8 @@ def create_data_v1(traning_data_path,
         features_vector=data_mining_features(i,row[1], row[2],vocab_word2index,word_vec_fasttext_dict,word_vec_word2vec_dict,tfidf_dict, n_gram=8)
         features_vector=[float(x) for x in features_vector]
         BLUE_SCORES_.append(features_vector)
-        y_=row[3]
+        y_ = row[3]
+
         y=vocab_label2index[y_]
         X1_.append(x1)
         X2_.append(x2)
@@ -87,15 +91,23 @@ def create_data_v1(traning_data_path,
         BLUE_SCORES.append(BLUE_SCORES_[index])
 
     # padding 0
-    X1_zero = np.zeros(sentence_len)
-    X2_zero = np.zeros(sentence_len)
-    for i in range(len(X1)):
-        X1_zero[i] = X1[i]
-    for i in range(len(X2)):
-        X2_zero[i] = X2[i]
+    for x in X1:
+        while len(x) != sentence_len:
+            x.append(0.)
 
-    X1 = list(X1_zero)
-    X2 = list(X2_zero)
+    for x in X2:
+        while len(x) != sentence_len:
+            x.append(0.)
+
+    # X1_zero = np.zeros(sentence_len)
+    # X2_zero = np.zeros(sentence_len)
+    # for i in range(len(X1)):
+    #     X1_zero[i] = X1[i]
+    # for i in range(len(X2)):
+    #     X2_zero[i] = X2[i]
+    #
+    # X1 = list(X1_zero)
+    # X2 = list(X2_zero)
 
     valid_number = min(1600,int((1-training_portion)*number_examples))
     test_number = 800
@@ -170,15 +182,13 @@ def create_data_v2(traning_data_path,
         BLUE_SCORES.append(BLUE_SCORES_[index])
 
     # padding 0
-    X1_zero = np.zeros(sentence_len)
-    X2_zero = np.zeros(sentence_len)
-    for i in range(len(X1)):
-        X1_zero[i] = X1[i]
-    for i in range(len(X2)):
-        X2_zero[i] = X2[i]
+    for x in X1:
+        while len(x) != sentence_len:
+            x.append(0.)
 
-    X1 = list(X1_zero)
-    X2 = list(X2_zero)
+    for x in X2:
+        while len(x) != sentence_len:
+            x.append(0.)
 
     with open("../data/data_v2", 'ab') as data_f:
         pickle.dump((X1, X2, Y, BLUE_SCORES), data_f)
@@ -392,7 +402,7 @@ def load_tfidf_dict(file_path):
     source_object = open(file_path, 'r')
     tfidf_dict={}
     for line in source_object:
-        word,tfidf_value=line.strip().split(splitter)
+        word,tfidf_value = line.strip().split("|||")
         word=word.decode("utf-8")
         tfidf_dict[word]=float(tfidf_value)
     return tfidf_dict
@@ -500,27 +510,97 @@ def edit(str1, str2):
     return matrix[len(str1)][len(str2)]
 
 
+
+def cos_distance_bag_tfidf(input_string_x1, input_string_x2,word_vec_dict, tfidf_dict,tfidf_flag=True):
+
+    #1.1 get word vec for sentence 1
+    sentence_vec1=get_sentence_vector(word_vec_dict,tfidf_dict, input_string_x1,tfidf_flag=tfidf_flag)
+
+    #1.2 get word vec for sentence 2
+    sentence_vec2 = get_sentence_vector(word_vec_dict, tfidf_dict, input_string_x2,tfidf_flag=tfidf_flag)
+
+    #2 compute cos similiarity
+    numerator=np.sum(np.multiply(sentence_vec1,sentence_vec2))
+    denominator=np.sqrt(np.sum(np.power(sentence_vec1,2)))*np.sqrt(np.sum(np.power(sentence_vec2,2)))
+    cos_distance=float(numerator)/float(denominator+0.000001)
+
+
+    manhattan_distance=np.sum(np.abs(np.subtract(sentence_vec1,sentence_vec2)))
+
+    if np.isnan(manhattan_distance): manhattan_distance=300.0
+    manhattan_distance=np.log(manhattan_distance+0.000001)/5.0
+
+    canberra_distance=np.sum(np.abs(sentence_vec1-sentence_vec2)/np.abs(sentence_vec1+sentence_vec2))
+    if np.isnan(canberra_distance): canberra_distance = 300.0
+    canberra_distance=np.log(canberra_distance+0.000001)/5.0
+
+    minkowski_distance=np.power(np.sum(np.power((sentence_vec1-sentence_vec2),3)), 0.33333333)
+    if np.isnan(minkowski_distance): minkowski_distance = 300.0
+    minkowski_distance=np.log(minkowski_distance+0.000001)/5.0
+
+    euclidean_distance=np.sqrt(np.sum(np.power((sentence_vec1-sentence_vec2),2)))
+    if np.isnan(euclidean_distance): euclidean_distance =300.0
+    euclidean_distance=np.log(euclidean_distance+0.000001)/5.0
+
+    return cos_distance,manhattan_distance,canberra_distance,minkowski_distance,euclidean_distance
+
+
+def get_sentence_vector(word_vec_dict,tfidf_dict,word_list,tfidf_flag=True):
+    vec_sentence=0.0
+    for word in word_list:
+        word_vec = word_vec_dict.get(word,None)
+        word_tfidf = tfidf_dict.get(word,None)
+        if word_vec is None is None or word_tfidf is None:
+            continue
+        else:
+            if tfidf_flag == True:
+                vec_sentence += word_vec*word_tfidf
+            else:
+                vec_sentence += word_vec * 1.0
+    vec_sentence=vec_sentence/(np.sqrt(np.sum(np.power(vec_sentence,2)))+0.000001)
+    return vec_sentence
+
+
+def get_tfidf_score_and_save(source_file,target_file):
+    source_object = open(source_file, 'r')
+    target_object = open(target_file, 'w')
+    corpus = [line.strip() for line in source_object.readlines()]
+    vectorizer = TfidfVectorizer(analyzer=lambda x:x.split(' '),min_df=3,use_idf=1,smooth_idf=1,sublinear_tf=1)
+    X = vectorizer.fit_transform(corpus)
+    idf = vectorizer.idf_
+    dict_word_tfidf = dict(zip(vectorizer.get_feature_names(), idf))
+    for k,v in dict_word_tfidf.items():
+        target_object.write(k+"|||"+str(v)+"\n")
+    target_object.close()
+
 def main():
 
-    csv_fw = csv.writer(open("../data/atec_nlp_sim_train_data.csv"))
-    csv_fr_v1 = csv.reader(open("../data/atec_nlp_sim_train.csv", 'r'))
-    csv_fr_v2 = csv.reader(open("../data/atec_nlp_sim_train_add.csv", 'r'))
-
-    for i, row in enumerate(csv_fr_v1):
-        csv_fw.writerow(row)
-
-    for i, row in enumerate(csv_fr_v2):
-        csv_fw.writerow(row)
-
-
-    # vocabulary_word2index, vocabulary_index2word, vocabulary_label2index, vocabulary_index2label= create_vocabulary("../atec_nlp_sim_train_data.csv",vocab_size=30000)
-    # vocab_size = len(vocabulary_word2index)
-    # num_classes = len(vocabulary_index2label)
+    # csv_fw = csv.writer(open("../data/atec_nlp_sim_train_data.csv",'a'),dialect='excel')
+    # csv_fr_v1 = csv.reader(open("../data/atec_nlp_sim_train.csv", 'r'))
+    # csv_fr_v2 = csv.reader(open("../data/atec_nlp_sim_train_add.csv", 'r'))
     #
+    # for i, row in enumerate(csv_fr_v1):
+    #     csv_fw.writerow(row)
     #
-    #
-    # create_data_v1("../data/atec_nlp_sim_train_data.csv", vocabulary_word2index, vocabulary_label2index, sentence_len=21)
-    # create_data_v2("../data/atec_nlp_sim_train_data.csv", vocabulary_word2index, vocabulary_label2index, sentence_len=21)
+    # for i, row in enumerate(csv_fr_v2):
+    #     csv_fw.writerow(row)
+
+    # spamreader = csv.reader(open("../data/atec_nlp_sim_train_data.csv", 'r'), delimiter='\t', quotechar='|')
+    # for i, row in enumerate(spamreader):
+    #     if row[3] == "1" or row[3] == "0":
+    #         continue
+    #     else:
+    #         print(i)
+    #         print(row)
+
+
+    vocabulary_word2index, vocabulary_index2word, vocabulary_label2index, vocabulary_index2label= create_vocabulary("../data/atec_nlp_sim_train_data.csv",vocab_size=30000)
+    vocab_size = len(vocabulary_word2index)
+    num_classes = len(vocabulary_index2label)
+
+    print(vocabulary_label2index)
+    create_data_v1("../data/atec_nlp_sim_train_data.csv", vocabulary_word2index, vocabulary_label2index, sentence_len=21)
+    create_data_v2("../data/atec_nlp_sim_train_data.csv", vocabulary_word2index, vocabulary_label2index, sentence_len=21)
     return
 
 if __name__ == '__main__':
