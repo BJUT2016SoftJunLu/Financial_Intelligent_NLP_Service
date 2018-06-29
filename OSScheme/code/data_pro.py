@@ -59,10 +59,11 @@ def create_data_v1(traning_data_path,
     word_vec_word2vec_dict = load_word_vec('../data/word2vec.txt')
     tfidf_dict=load_tfidf_dict('../data/atec_nl_sim_tfidf.txt')
 
+    print("data_mining_features.......")
     for i, row in enumerate(spamreader):
-        x1_list=token_string_as_list(row[1],tokenize_style=tokenize_style)
+        x1_list = token_string_as_list(row[1], tokenize_style=tokenize_style)
         x1 = [vocab_word2index.get(x, UNK_ID) for x in x1_list]
-        x2_list=token_string_as_list(row[2],tokenize_style=tokenize_style)
+        x2_list = token_string_as_list(row[2], tokenize_style=tokenize_style)
         x2 = [vocab_word2index.get(x, UNK_ID) for x in x2_list]
         #add blue score features 2018-05-06
         features_vector=data_mining_features(i,row[1], row[2],vocab_word2index,word_vec_fasttext_dict,word_vec_word2vec_dict,tfidf_dict, n_gram=8)
@@ -70,7 +71,7 @@ def create_data_v1(traning_data_path,
         BLUE_SCORES_.append(features_vector)
         y_ = row[3]
 
-        y=vocab_label2index[y_]
+        y = vocab_label2index[y_]
         X1_.append(x1)
         X2_.append(x2)
         Y_.append(y)
@@ -90,25 +91,22 @@ def create_data_v1(traning_data_path,
         Y.append(Y_[index])
         BLUE_SCORES.append(BLUE_SCORES_[index])
 
-    # padding 0
-    for x in X1:
-        while len(x) != sentence_len:
-            x.append(0.)
+    print("padding.....")
+    for i in range(len(X1)):
+        if len(X1[i]) > sentence_len:
+            X1[i] = X1[i][0:sentence_len]
+            print(len(X1[i]))
+        else:
+            X1[i].extend([0.] * (sentence_len - len(X1[i])))
 
-    for x in X2:
-        while len(x) != sentence_len:
-            x.append(0.)
+    for i in range(len(X2)):
+        if len(X2[i]) > sentence_len:
+            X2[i] = X2[i][0:sentence_len]
+            print(len(X2[i]))
+        else:
+            X2[i].extend([0.] * (sentence_len - len(X2[i])))
 
-    # X1_zero = np.zeros(sentence_len)
-    # X2_zero = np.zeros(sentence_len)
-    # for i in range(len(X1)):
-    #     X1_zero[i] = X1[i]
-    # for i in range(len(X2)):
-    #     X2_zero[i] = X2[i]
-    #
-    # X1 = list(X1_zero)
-    # X2 = list(X2_zero)
-
+    print("split data.......")
     valid_number = min(1600,int((1-training_portion)*number_examples))
     test_number = 800
     training_number = number_examples-valid_number-test_number
@@ -116,84 +114,20 @@ def create_data_v1(traning_data_path,
 
     #generate more training data, while still keep data distribution for valid and test.
     X1_final, X2_final, BLUE_SCORE_final,Y_final,training_number_big=get_training_data(X1[0:training_number], X2[0:training_number], BLUE_SCORES[0:training_number],Y[0:training_number], training_number)
-    train = (X1_final,X2_final, BLUE_SCORE_final,Y_final)
-    valid = (X1[training_number+ 1:valid_end], X2[training_number+ 1:valid_end],BLUE_SCORES[training_number + 1:valid_end],Y[training_number + 1:valid_end])
-    test=(X1[valid_end+1:],X2[valid_end:],BLUE_SCORES[valid_end:],Y[valid_end:])
+
+    train = (X1_final, X2_final, BLUE_SCORE_final, Y_final)
+
+    valid = (X1[training_number+1:valid_end], X2[training_number + 1:valid_end], BLUE_SCORES[training_number + 1 : valid_end], Y[training_number + 1:valid_end])
+
+    test = (X1[valid_end+1:], X2[valid_end:], BLUE_SCORES[valid_end:], Y[valid_end:])
 
     true_label_numbers = len([y for y in Y if y == 1])
     true_label_pert = float(true_label_numbers)/float(number_examples)
 
-    with open("../data/data_v1", 'ab') as data_f:
-        pickle.dump((train, valid, test, true_label_pert),data_f)
-
+    with open("../data/data_v1", 'wb') as data_f:
+        pickle.dump((train, valid, test, true_label_pert), data_f)
     return
 
-
-def create_data_v2(traning_data_path,
-                   vocab_word2index,
-                   vocab_label2index,
-                   sentence_len,
-                   tokenize_style='word'):
-
-    csvfile = open(traning_data_path, 'r')
-    spamreader = csv.reader(csvfile, delimiter='\t', quotechar='|')
-    label_size = len(vocab_label2index)
-    X1_ = []
-    X2_ = []
-    Y_ = []
-
-    tfidf_source_file = '../data/atec_nl_sim_train.txt'
-    tfidf_target_file = '../data/atec_nl_sim_tfidf.txt'
-
-    get_tfidf_score_and_save(tfidf_source_file, tfidf_target_file)
-
-    BLUE_SCORES_ = []
-    word_vec_fasttext_dict = load_word_vec('../data/fasttext_fin_model_50.vec')
-    word_vec_word2vec_dict = load_word_vec('../data/word2vec.txt')
-    tfidf_dict = load_tfidf_dict('../data/atec_nl_sim_tfidf.txt')
-
-    for i, row in enumerate(spamreader):
-        x1_list = token_string_as_list(row[1], tokenize_style=tokenize_style)
-        x1 = [vocab_word2index.get(x, UNK_ID) for x in x1_list]
-        x2_list = token_string_as_list(row[2], tokenize_style=tokenize_style)
-        x2 = [vocab_word2index.get(x, UNK_ID) for x in x2_list]
-        # add blue score features 2018-05-06
-        features_vector = data_mining_features(i, row[1], row[2], vocab_word2index, word_vec_fasttext_dict, word_vec_word2vec_dict, tfidf_dict, n_gram=8)
-        features_vector = [float(x) for x in features_vector]
-        BLUE_SCORES_.append(features_vector)
-        y_ = row[3]
-        y = vocab_label2index[y_]
-        X1_.append(x1)
-        X2_.append(x2)
-        Y_.append(y)
-
-    number_examples = len(Y_)
-
-    # shuffle
-    X1 = []
-    X2 = []
-    Y = []
-    BLUE_SCORES = []
-    permutation = np.random.permutation(number_examples)
-    for index in permutation:
-        X1.append(X1_[index])
-        X2.append(X2_[index])
-        Y.append(Y_[index])
-        BLUE_SCORES.append(BLUE_SCORES_[index])
-
-    # padding 0
-    for x in X1:
-        while len(x) != sentence_len:
-            x.append(0.)
-
-    for x in X2:
-        while len(x) != sentence_len:
-            x.append(0.)
-
-    with open("../data/data_v2", 'ab') as data_f:
-        pickle.dump((X1, X2, Y, BLUE_SCORES), data_f)
-
-    return
 
 
 #use pretrained word embedding to get word vocabulary and labels, and its relationship with index
@@ -240,31 +174,29 @@ def create_vocabulary(training_data_path,
         vocabulary_word2index[word]=i+2
         vocabulary_index2word[i+2]=word
 
-
-    with open("../data/vocabulary", 'ab') as data_f:
+    with open("../data/vocabulary", 'wb') as data_f:
         pickle.dump((vocabulary_word2index,vocabulary_index2word,vocabulary_label2index,vocabulary_index2label), data_f)
-
     save_vocab_as_file(vocabulary_word2index,vocabulary_index2label,vocab_list,name_scope=name_scope)
-    return vocabulary_word2index,vocabulary_index2word,vocabulary_label2index,vocabulary_index2label
+    return
 
 
 def save_vocab_as_file(vocab_word2index,vocab_index2label,vocab_list,name_scope='cnn'):
 
     #1.1save vocabulary_word2index
-    vocab_word2index_object=open("../data/vocabulary_word2index",mode='a')
+    vocab_word2index_object=open("../data/vocabulary_word2index",mode='w')
     for word,index in vocab_word2index.items():
         vocab_word2index_object.write(word+splitter+str(index)+"\n")
     vocab_word2index_object.close()
 
     #1.2 save word and frequent
-    word_freq_object=open("../data/word_frequent", mode='a')
+    word_freq_object=open("../data/word_frequent", mode='w')
     for tuplee in vocab_list:
         word,count=tuplee
         word_freq_object.write(word+"|||"+str(count)+"\n")
     word_freq_object.close()
 
     #2.vocabulary_index2label
-    vocab_index2label_object = open("../data/vocabulary_index2label",mode='a')
+    vocab_index2label_object = open("../data/vocabulary_index2label",mode='w')
     for index,label in vocab_index2label.items():
         vocab_index2label_object.write(str(index)+splitter+str(label)+"\n")
     vocab_index2label_object.close()
@@ -575,32 +507,12 @@ def get_tfidf_score_and_save(source_file,target_file):
 
 def main():
 
-    # csv_fw = csv.writer(open("../data/atec_nlp_sim_train_data.csv",'a'),dialect='excel')
-    # csv_fr_v1 = csv.reader(open("../data/atec_nlp_sim_train.csv", 'r'))
-    # csv_fr_v2 = csv.reader(open("../data/atec_nlp_sim_train_add.csv", 'r'))
-    #
-    # for i, row in enumerate(csv_fr_v1):
-    #     csv_fw.writerow(row)
-    #
-    # for i, row in enumerate(csv_fr_v2):
-    #     csv_fw.writerow(row)
+    create_vocabulary("../data/atec_nlp_sim_train_data.csv", vocab_size=13422)
 
-    # spamreader = csv.reader(open("../data/atec_nlp_sim_train_data.csv", 'r'), delimiter='\t', quotechar='|')
-    # for i, row in enumerate(spamreader):
-    #     if row[3] == "1" or row[3] == "0":
-    #         continue
-    #     else:
-    #         print(i)
-    #         print(row)
+    with open("../data/vocabulary",'rb') as f:
+        vocabulary_word2index, vocabulary_index2word, vocabulary_label2index, vocabulary_index2label = pickle.load(f)
 
-
-    vocabulary_word2index, vocabulary_index2word, vocabulary_label2index, vocabulary_index2label= create_vocabulary("../data/atec_nlp_sim_train_data.csv",vocab_size=30000)
-    vocab_size = len(vocabulary_word2index)
-    num_classes = len(vocabulary_index2label)
-
-    print(vocabulary_label2index)
-    create_data_v1("../data/atec_nlp_sim_train_data.csv", vocabulary_word2index, vocabulary_label2index, sentence_len=21)
-    create_data_v2("../data/atec_nlp_sim_train_data.csv", vocabulary_word2index, vocabulary_label2index, sentence_len=21)
+    create_data_v1("../data/atec_nlp_sim_train_data.csv", vocabulary_word2index, vocabulary_label2index, sentence_len=39)
     return
 
 if __name__ == '__main__':
