@@ -63,13 +63,14 @@ class MyOSScheme():
         self.b1 = tf.Variable(tf.ones([self.hidden_size]) / 10)
         self.b2 = tf.Variable(tf.ones([self.hidden_size]) / 10)
         self.b3 = tf.Variable(tf.ones([self.hidden_size*2]) / 10)
-        self.Embedding = tf.get_variable("Embedding", shape=[self.vocab_size, self.embed_size], initializer=self.initializer)
-        self.W_projection = tf.get_variable("W_projection", shape=[self.hidden_size * 2, self.num_classes], initializer=self.initializer)
-        self.b_projection = tf.get_variable("b_projection",shape=[self.num_classes])
-        self.W_LR = tf.get_variable("W_LR", shape=[self.length_data_mining_features, self.num_classes])
-        self.b_LR = tf.get_variable("b_LR", shape=[self.num_classes])
-        self.W_projection_bilstm = tf.get_variable("W_projection_bilstm", shape=[self.hidden_size*2, self.num_classes], initializer=self.initializer)
-        self.b_projection_bilstm = tf.get_variable("b_projection_bilstm", shape=[self.num_classes])
+
+        self.Embedding = tf.Variable(name="Embedding", initial_value=tf.random_normal(stddev=0.1,shape=[self.vocab_size, self.embed_size]))
+        self.W_projection = tf.Variable(name="W_projection", initial_value=tf.random_normal(shape=[self.hidden_size * 2, self.num_classes],stddev=0.1))
+        self.b_projection = tf.Variable(name="b_projection",initial_value=tf.random_normal(shape=[self.num_classes]))
+        self.W_LR = tf.Variable(name="W_LR",initial_value=tf.random_normal(shape=[self.length_data_mining_features, self.num_classes]))
+        self.b_LR = tf.Variable(name="b_LR",initial_value=tf.random_normal(shape=[self.num_classes]))
+        self.W_projection_bilstm = tf.Variable(name="W_projection_bilstm", initial_value=tf.random_normal(shape=[self.hidden_size*2, self.num_classes],stddev=0.1))
+        self.b_projection_bilstm = tf.Variable(name="b_projection_bilstm", initial_value=tf.random_normal(shape=[self.num_classes]))
         self.global_step = tf.Variable(0, trainable=False, name="Global_Step")
 
         # model layer
@@ -181,22 +182,22 @@ class MyOSScheme():
 
         embedded_words = tf.nn.embedding_lookup(self.Embedding, input_x)
 
-        with tf.variable_scope("bi_lstm_"+str(name_scope),reuse=reuse_flag):
+        with tf.variable_scope("bi_lstm_" + str(name_scope), reuse=True):
             lstm_fw_cell = rnn.BasicLSTMCell(self.hidden_size)
             lstm_bw_cell = rnn.BasicLSTMCell(self.hidden_size)
-            outputs, hidden_states = tf.nn.bidirectional_dynamic_rnn(lstm_fw_cell, lstm_bw_cell, embedded_words, dtype=tf.float32)
+            outputs, hidden_states = tf.nn.bidirectional_dynamic_rnn(lstm_fw_cell, lstm_bw_cell, embedded_words, dtype = tf.float32)
 
         feature = tf.concat([hidden_states[0][1],hidden_states[1][1]],axis=1)
 
         return feature
 
     def additive_attention(self,x1, x2, dimension_size, vairable_scope):
-        with tf.variable_scope(vairable_scope):
-            g = tf.get_variable("attention_g", initializer=tf.sqrt(1.0 / self.hidden_size))
-            b = tf.get_variable("bias", shape=[dimension_size], initializer=tf.zeros_initializer)
-            x1 = tf.layers.dense(x1, dimension_size)
-            x2 = tf.layers.dense(x2, dimension_size)
-            h = g*tf.nn.relu(x1 + x2 + b)
+
+        g = tf.Variable(name="attention_g",initial_value=tf.sqrt(1.0 / self.hidden_size))
+        b = tf.Variable(name="bias",initial_value=tf.zeros(shape=[dimension_size]))
+        x1 = tf.layers.dense(x1, dimension_size)
+        x2 = tf.layers.dense(x2, dimension_size)
+        h = g*tf.nn.relu(x1 + x2 + b)
         return h
 
     def conv_layers(self,input_x, name_scope, reuse_flag=False):
@@ -204,12 +205,13 @@ class MyOSScheme():
         embedded_words = tf.nn.embedding_lookup(self.Embedding,input_x)
         sentence_embeddings_expanded=tf.expand_dims(embedded_words,-1)
 
+
         pooled_outputs = []
         for i,filter_size in enumerate(self.filter_sizes_list):
-            with tf.variable_scope(str(name_scope)+"convolution-pooling-%s" %filter_size,reuse=reuse_flag):
-                filter = tf.get_variable("filter-%s" % filter_size, [filter_size, self.embed_size, 1, self.num_filters], initializer=self.initializer)
+            with tf.variable_scope(str(name_scope) + "convolution-pooling-%s" % filter_size, reuse=False):
+                filter = tf.Variable(name="filter-%s" % filter_size, initial_value=tf.random_normal(stddev=0.1,shape=[filter_size, self.embed_size, 1, self.num_filters]))
                 conv = tf.nn.conv2d(sentence_embeddings_expanded, filter, strides=[1, 1, 1, 1], padding="VALID", name="conv")
-                b = tf.get_variable("b-%s"%filter_size, [self.num_filters])
+                b = tf.Variable(name="b-%s"%filter_size,initial_value=tf.random_normal(shape=[self.num_filters]))
                 h = tf.nn.relu(tf.nn.bias_add(conv, b), "relu")
                 h = tf.reshape(h, [-1, self.sequence_length - filter_size + 1,self.num_filters])
                 h = tf.transpose(h, [0, 2, 1])
@@ -218,8 +220,7 @@ class MyOSScheme():
                 pooled_outputs.append(h)
         h_pool = tf.concat(pooled_outputs, 1)
         h_pool_flat = tf.reshape(h_pool, [-1, self.num_filters_total*3])
-        with tf.name_scope("dropout"):
-            h = tf.nn.dropout(h_pool_flat, keep_prob=self.dropout_keep_prob)
+        h = tf.nn.dropout(h_pool_flat, keep_prob=self.dropout_keep_prob)
         return h
 
     def loss(self, l2_lambda=0.0003):

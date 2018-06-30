@@ -1,19 +1,18 @@
 # /usr/bin/env python
 # coding=utf-8
 
-from model import *
+from model_bilstm_cnn import BiLSTM_CNN
 
 import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
-import tensorflow as tf
-import numpy as np
 import pickle
 import random
-from weight_boosting import compute_labels_weights,get_weights_for_current_batch,get_weights_label_as_standard_dict,init_weights_dict
+from weight_boosting import *
 from gensim.models import KeyedVectors
 small_value = 0.00001
+
 file_object = open('../data/log_predict_error.txt','a')
 
 
@@ -32,11 +31,10 @@ def train(trainX1, trainX2, trainBlueScores, trainY,
 
     vocab_size = len(vocabulary_word2index)
 
-    # length_data_mining_features = len(trainBlueScores[0])
 
     #2.create session.
-    config=tf.ConfigProto()
-    config.gpu_options.allow_growth=True
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
     with tf.Session(config=config) as sess:
         saver = tf.train.Saver()
         sess.run(tf.global_variables_initializer())
@@ -68,9 +66,7 @@ def train(trainX1, trainX2, trainBlueScores, trainY,
                              train_model.weights: np.array(weights),
                              train_model.dropout_keep_prob: 0.5}
 
-
-                curr_loss, curr_acc, curr_lr, _ = sess.run([train_model.loss_val, train_model.accuracy, train_model.learning_rate, train_model.train_op], feed_dict)
-
+                curr_loss, curr_acc, curr_lr, _ = sess.run([train_model.loss, train_model.accuracy, train_model.learning_rate, train_model.train_op], feed_dict)
                 loss, eval_acc, counter = loss + curr_loss, eval_acc + curr_acc, counter+1
                 if counter % 100 == 0:
                      print("Epoch %d\tBatch %d\tTrain Loss:%.3f\tAcc:%.3f\tLearning rate:%.5f" %(epoch,counter,loss/float(counter),eval_acc/float(counter),curr_lr))
@@ -79,11 +75,11 @@ def train(trainX1, trainX2, trainBlueScores, trainY,
             weights_dict = get_weights_label_as_standard_dict(weights_label)
             print("label accuracy(used for label weight):==========>>>>", weights_dict)
 
-            if eval_accc * 1.05 > best_acc and f1_scoree > best_f1_score:
-                print("going to save model. eval_f1_score:",f1_scoree,";previous best f1 score:",best_f1_score, ";eval_acc",str(eval_accc),";previous best_acc:",str(best_acc))
-                saver.save(sess, "../model/model.ckpt", global_step=epoch)
-                best_acc = eval_accc
-                best_f1_score = f1_scoree
+            # if eval_accc * 1.05 > best_acc and f1_scoree > best_f1_score:
+            print("going to save model. eval_f1_score:",f1_scoree,";previous best f1 score:",best_f1_score, ";eval_acc",str(eval_accc),";previous best_acc:",str(best_acc))
+            saver.save(sess, "../model/model.ckpt", global_step=epoch)
+            best_acc = eval_accc
+            best_f1_score = f1_scoree
 
             if True and (epoch != 0 and (epoch == 2 or epoch == 5 or epoch == 9 or epoch == 13)):
                 for i in range(2):
@@ -94,8 +90,6 @@ def train(trainX1, trainX2, trainBlueScores, trainY,
     print("Test Loss:%.3f\tAcc:%.3f\tF1 Score:%.3f\tPrecision:%.3f\tRecall:%.3f:" % ( test_loss,acc_t,f1_score_t,precision,recall))
 
 
-
-
 def shuffle_data(trainX1, trainX2, trainFeatures, trainY):
 
     c = list(zip(trainX1,trainX2,trainFeatures,trainY))
@@ -103,13 +97,14 @@ def shuffle_data(trainX1, trainX2, trainFeatures, trainY):
     trainX1[:], trainX2[:], trainFeatures[:],trainY[:]= zip(*c)
     return trainX1, trainX2,trainFeatures, trainY
 
-def generate_batch_training_data(X1,X2,trainBlueScores,Y,num_data,batch_size):
+def generate_batch_training_data(X1, X2, trainBlueScores, Y, num_data, batch_size):
 
     index_list_ = random.sample(range(0, num_data), batch_size*5)
 
     index_list = []
     countt_true = 0
     count_false = 0
+
     for i,index in enumerate(index_list_):
         if Y[index] == 1 and countt_true < 20:
             index_list.append(index)
@@ -124,15 +119,25 @@ def generate_batch_training_data(X1,X2,trainBlueScores,Y,num_data,batch_size):
     input_y = [Y[index] for index in index_list]
     return input_x1, input_x2, input_bluescore, input_y
 
-#do eval and report acc, f1 score
 def do_eval(sess, textCNN, evalX1, evalX2, evalBlueScores, evalY, vocabulary_index2word):
+
     number_examples=len(evalX1)
-    eval_loss, eval_accc, eval_counter = 0.0, 0.0, 0
-    eval_true_positive, eval_false_positive, eval_true_negative, eval_false_negative = 0, 0, 0, 0
+
+    eval_loss = 0.0
+    eval_accc = 0.0
+    eval_counter = 0
+
+    eval_true_positive = 0
+    eval_false_positive = 0
+    eval_true_negative = 0
+    eval_false_negative = 0
+
     batch_size = 1
     weights_label = {}
     weights = np.ones((batch_size))
+
     for start,end in zip(range(0,number_examples,batch_size),range(batch_size,number_examples,batch_size)):
+
         feed_dict = {textCNN.input_x1: evalX1[start:end],
                      textCNN.input_x2: evalX2[start:end],
                      textCNN.input_bluescores:evalBlueScores[start:end],
@@ -140,7 +145,7 @@ def do_eval(sess, textCNN, evalX1, evalX2, evalBlueScores, evalY, vocabulary_ind
                      textCNN.weights:weights,
                      textCNN.dropout_keep_prob: 1.0}
 
-        curr_eval_loss,curr_accc, logits = sess.run([textCNN.loss_val, textCNN.accuracy, textCNN.logits], feed_dict)
+        curr_eval_loss, curr_accc, logits = sess.run([textCNN.loss, textCNN.accuracy, textCNN.logits], feed_dict)
         true_positive, false_positive, true_negative, false_negative = compute_confuse_matrix(logits[0], evalY[start:end][0])
         write_predict_error_to_file(start, file_object, logits[0], evalY[start:end][0], vocabulary_index2word, evalX1[start:end], evalX2[start:end])
         eval_loss, eval_accc, eval_counter = eval_loss + curr_eval_loss, eval_accc + curr_accc, eval_counter + 1
@@ -238,8 +243,9 @@ def main():
 
     length_data_mining_features = len(trainBlueScores[0])
 
+
     print("创建模型")
-    train_model = MyOSScheme(filter_sizes_list = [2,3,4],
+    train_model = BiLSTM_CNN(filter_sizes_list = [2,3,4],
                                      num_filters = 10,
                                      num_classes = 2,
                                      learning_rate = 0.001,
